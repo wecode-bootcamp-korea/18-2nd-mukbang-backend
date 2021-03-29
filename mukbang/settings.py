@@ -4,7 +4,7 @@ from my_settings import SECRET_KEY, DATABASES, HASHING_ALGORITHM
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'od-@p8n&c2wa&swdjs206)b*xp%p_%6s&ny@jsx25el(lrp-!*'
+SECRET_KEY = SECRET_KEY
 
 HASHING_ALGORITHM = HASHING_ALGORITHM
 
