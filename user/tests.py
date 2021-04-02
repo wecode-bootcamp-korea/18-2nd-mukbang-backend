@@ -22,8 +22,8 @@ class KakaoLoginTest(TestCase):
             params = {'access_token': 'test_access_token'}
             response = client.get('/user/login/kakao', data=params, content_type='application/json').json()
 
-            self.assertEqual(response.get('nickname'), 'test_nickname')
-            self.assertTrue(response.get('token'), True)
+        self.assertEqual(response.get('nickname'), 'test_nickname')
+        self.assertTrue(response.get('token'), True)
 
     def test_kakaologin_get_fail_access_token_not_exist(self):
         client = Client()
