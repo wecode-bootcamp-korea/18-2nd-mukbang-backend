@@ -40,13 +40,13 @@ class Address(models.Model):
     region_2depth_name = models.CharField(max_length=30)
     region_3depth_name = models.CharField(max_length=30)
     road_name          = models.CharField(max_length=30)
-    building_name      = models.CharField(max_length=30)
+    building_name      = models.CharField(max_length=30, null=True)
     store              = models.OneToOneField('Store', on_delete=models.CASCADE)
 
     class Meta:
         db_table = 'addresses'
 
-
+ 
 class Menu(models.Model): 
     name           = models.CharField(max_length=30)
     price          = models.DecimalField(max_digits=10, decimal_places=2)
@@ -68,7 +68,7 @@ class StoreImage(models.Model):
 
 class MetroStation(models.Model):
     name       = models.CharField(max_length=30)
-    line       = models.IntegerField()
+    line       = models.CharField(max_length=30)
     latitude   = models.DecimalField(max_digits=25, decimal_places=22)
     longitude  = models.DecimalField(max_digits=25, decimal_places=22)
     near_store = models.ManyToManyField('Store', through='MetroStationStore')
