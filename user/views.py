@@ -1,15 +1,15 @@
-import jwt
-import requests
-import uuid
+import jwt, time, random, datetime
+import requests, hashlib, hmac, base64
+import uuid, json, bcrypt, re
+from json.decoder     import JSONDecodeError
 
 from django.shortcuts import redirect
 from django.views     import View
 from django.http      import JsonResponse
 
-from .models import User
-
-from my_settings import SECRET_KEY, HASHING_ALGORITHM, KAKAO_RESTAPI_KEY
-
+from utils.decorators       import Validator
+from .models          import User
+from my_settings      import SMS_SERVICE_ID, SMS_SECRET_KEY, SMS_ACCESS_KEY, HASHING_ALGORITHM, SECRET_KEY, EMAIL_REGEX, PASSWORD_REGEX
 
 KAKAO_USERINFO_REQUEST_URL = 'https://kapi.kakao.com/v2/user/me'
 
@@ -43,3 +43,128 @@ class KakaoLoginView(View):
 
         except KeyError:
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)
+
+
+class SignUpView(View):
+    @Validator
+    def post(self, request):
+        try:
+            data          = json.loads(request.body)
+            email         = data['email']
+            password      = data['password']
+            email_check   = User.objects.filter(email=email).exists()
+
+            if email_check:
+                return JsonResponse({'message': 'ERROR_EMAIL_EXISTS'}, status=401)
+            
+            if not EMAIL_REGEX.match(email):
+                return JsonResponse({'message': 'ERROR_EMAIL_FORM'}, status=401)
+            
+            if not PASSWORD_REGEX.match(password):
+                return JsonResponse({'message': 'ERROR_PASSWORD_FORM'}, status=401)
+
+            decoded_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            User.objects.create(email=email, password=decoded_password)
+            return JsonResponse({'message':'SUCCESS_SIGNUP'}, status = 201)
+
+        except KeyError:
+            return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
+
+        except JSONDecodeError:
+            return JsonResponse({'message': 'JSONDecodeError'}, status=400)
+
+class SMSCodeRequestView(View):
+    
+        def make_signature(self):
+            timestamp  = str(int(time.time() * 1000))
+            secret_key = bytes(SMS_SECRET_KEY, 'UTF-8')
+            method     = "POST"
+            uri        = '/sms/v2/services/{}/messages'.format(SMS_SERVICE_ID)
+            message    = method + " " + uri + "\n" + timestamp + "\n" + SMS_ACCESS_KEY
+            message    = bytes(message, 'UTF-8')
+            signature  = base64.b64encode(hmac.new(secret_key, message, digestmod  = hashlib.sha256).digest())
+            return signature   
+        
+        def post(self, request):
+            try:
+                data              = json.loads(request.body)
+                auth_phone        = data['auth_phone']
+                random_code       = str(random.randint(1000, 9999))
+                hased_random_code = bcrypt.hashpw(random_code.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                timestamp         = str(int(time.time() * 1000))
+                
+                headers = {
+                    'Content-Type':'application/json; charset=UTF-8',
+                    'x-ncp-apigw-timestamp':timestamp,
+                    'x-ncp-iam-access-key': SMS_ACCESS_KEY,
+                    'x-ncp-apigw-signature-v2':self.make_signature()
+                } 
+                
+                body = {
+                    "type": "sms",
+                    "countryCode": "82",
+                    "from": "01032974510",
+                    "content": "Authentication Code.\n{}".format(random_code),
+                    "messages":[
+                        {
+                            "to": "{}".format(auth_phone)
+                        }
+                    ]
+                }
+
+                sms_service_url   = 'https://sens.apigw.ntruss.com/sms/v2/services/{}/messages'.format(SMS_SERVICE_ID)
+                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body), timeout_seconds=5)
+
+                if response.status_code == 202:
+                    return JsonResponse({'message': 'SUCCESS_CODE_SENT', 'hased_random_code':hased_random_code})      
+                return JsonResponse({'message': 'CODE_NOT_SENT'})
+
+
+            except KeyError:
+                return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
+                
+            except JSONDecodeError:
+                return JsonResponse({'message': 'JSONDecodeError'}, status=400)
+
+class SMSCodeCheckView(View):
+    def post(self, request):
+        try:
+            data              = json.loads(request.body)
+            auth_code         = data['auth_code']
+            hased_random_code = data['hased_random_code']
+            auth_token        = jwt.encode({'exp':datetime.datetime.utcnow() + datetime.timedelta(seconds=100)}, SECRET_KEY, HASHING_ALGORITHM)
+            
+            if not bcrypt.checkpw(auth_code.encode('utf-8'), hased_random_code.encode('utf-8')):
+                return JsonResponse({'message': 'ERROR_CODE_NOT_MATCHED'}, status=401)
+            return JsonResponse({'message': 'SUCCESS_CODE_MATCHED','auth_token':auth_token}, status=201)
+
+        except KeyError:
+            return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
+
+        except JSONDecodeError:
+            return JsonResponse({'message': 'JSONDecodeError'}, status=400)
+
+class SignInView(View):
+    def post(self, request):
+        try:
+            data          = json.loads(request.body)
+            email         = data['email']
+            password      = data['password']
+            
+            email_check      = User.objects.get(email=email)
+            decoded_password = email_check.password
+
+            if not email_check:
+                return JsonResponse({'message': 'ERROR_NO_EMAIL'}, status=401)
+
+            if not bcrypt.checkpw(password.encode('utf-8'), decoded_password.encode('utf-8')):
+                return JsonResponse({'message': 'ERROR_PASSWORD_NOT_MATCHED'}, status=401)
+
+            return JsonResponse({'message':'SUCCESS_SIGNIN'}, status = 201)
+
+        except KeyError:
+            return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
+
+        except JSONDecodeError:
+            return JsonResponse({'message': 'JSONDecodeError'}, status=400)
+
