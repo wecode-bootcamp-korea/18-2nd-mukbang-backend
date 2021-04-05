@@ -58,3 +58,16 @@ def user_check(func):
         except User.DoesNotExist:
             return JsonResponse({'message': 'USER_DOES_NOT_EXIST'}, stauts=404)
     return wrapper
+
+#for SMS authorization
+def Validator(func):
+    def Wrapper(self, request, *args, **kwargs):
+        encoded_token = request.headers.get('Authorization')
+        try:
+            if encoded_token:
+                decoded_token = jwt.decode(encoded_token, SECRET_KEY, HASHING_ALGORITHM)
+            return func(self, request, *args, **kwargs)
+
+        except jwt.exceptions.DecodeError:
+            return JsonResponse({"message" : "INVALID_TOKEN"}, status=401)
+    return Wrapper
