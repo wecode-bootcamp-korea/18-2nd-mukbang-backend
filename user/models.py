@@ -16,7 +16,7 @@ class User(models.Model):
 class Review(models.Model):
     rating     = models.CharField(max_length=45)
     content    = models.CharField(max_length=500)
-    image_url  = models.CharField(max_length=3000)
+    image_url  = models.CharField(max_length=3000, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     user       = models.ForeignKey('User', on_delete=models.CASCADE)

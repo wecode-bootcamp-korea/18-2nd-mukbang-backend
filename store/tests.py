@@ -8,9 +8,14 @@ from django.http import JsonResponse
 
 from unittest.mock import patch, MagicMock, Mock
 
-from .views import StoreView
+from .views import StoreView, StoreDetailView, ReviewDetail
 
-from .models import Store, OpenStatus, Category
+from .models import (
+                    Category, OpenStatus, Store,
+                    Address, Menu, StoreImage,
+                    MetroStation, MetroStationStore
+                )
+from user.models import User, Review
 
 
 TEST_DATA = {
@@ -38,8 +43,8 @@ TEST_DATA = {
             "region_2depth_name": "강남구",
             "region_3depth_name": "역삼동",
             "road_name"         : "강남대로66길",
-            "x"                 : "127.032166561787",
-            "y"                 : "37.4918939171295"
+            "x"               : "127.032166561787",
+            "y"               : "37.4918939171295"
         },
         "menus": [
             {
@@ -185,7 +190,241 @@ class StoreRegistryDuplicateTest(TestCase):
         response = client.post('/store', json.dumps(TEST_DATA), content_type='application/json').json()
 
     def test_store_post_fail_with_duplicate_data(self):
-        client = Client()
+        client   = Client()
         response = client.post('/store', json.dumps(TEST_DATA), content_type='application/json').json()
 
         self.assertEqual(response.get('message'), 'DUPLICATE_STORE_NAME_AT_THE_SAME_LOCATION')
+
+
+class StoreShowTest(TestCase):
+    def setUp(self):
+        category    = Category.objects.create(name='한식')
+        open_status = OpenStatus.objects.create(name='오픈중')
+        
+        store = Store.objects.create(
+                                        id                       = 1,
+                                        name                     = '순남시래기',
+                                        one_line_introduction    = 'The best siraegi you are going to taste',
+                                        opening_time_description = '매일 09 - 22',
+                                        phone_number             = '010-1234-5678',
+                                        sns_url                  = 'instagram.com/siraegi',
+                                        menu_pamphlet_image_url  = 'test_pamphlet_image_url',
+                                        is_reservation           = 1,
+                                        is_wifi                  = 1,
+                                        is_parking               = 1,
+                                        category                 = category,
+                                        open_status              = open_status
+                                    )
+
+        StoreImage.objects.create(store=store, image_url='test_store_image_url')
+
+        Address.objects.create(
+                                latitude           = 37.4918939171295,
+                                longitude          = 127.032166561787,
+                                full_address       = '서울 강남구 강남대로66길 16',
+                                region_1depth_name = '서울',
+                                region_2depth_name = '강남구',
+                                region_3depth_name = '역삼동',
+                                road_name          = '강남대로66길',
+                                building_name      = '',
+                                store              = store
+                                )
+
+        Menu.objects.create(
+                            name           = '시래기 국밥',
+                            price          = 8000,
+                            menu_image_url = 'test_menu_image_url',
+                            store          = store
+                        )
+
+        metro_station = MetroStation.objects.create(
+                                                    name='사당역',
+                                                    line='2',
+                                                    latitude=37.5045,
+                                                    longitude=127.049
+                                                )
+
+        MetroStationStore.objects.create(store=store, metro_station=metro_station)
+
+        user = User.objects.create(kakao_id='123456')
+
+        Review.objects.create(rating=4, content='맛있어요', user=user, store=store, image_url='test_image_url')
+        Review.objects.create(rating=5, content='맛있어요', user=user, store=store, image_url='test_image_url')
+
+    def test_store_get_without_pagination_success(self):
+        client = Client()
+        params = {
+            'lat'         : 37.491893917128,
+            'lng'         : 127.032166561787,
+            'scale_level' : 2,
+            'pixel_width' : 300,
+            'pixel_height': 300,
+        }
+
+        response   = client.get('/store', params).json()
+        store_name = response['results'][0]['store_name']
+
+        self.assertEqual(store_name, '순남시래기')
+
+    def test_store_get_with_pagination_success(self):
+        client = Client()
+        params = {
+            'lat'         : 37.491893917128,
+            'lng'         : 127.032166561787,
+            'scale_level' : 2,
+            'pixel_width' : 300,
+            'pixel_height': 300,
+            'offset'      : 0,
+            'limit'       : 1
+        }
+
+        response = client.get('/store', params).json()
+        store_name = response['results'][0]['store_name']
+
+        self.assertEqual(store_name, '순남시래기')
+    
+    def test_store_get_category_filter_success(self):
+        client = Client()
+        params = {
+                'lat'         : 37.491893917128,
+                'lng'         : 127.032166561787,
+                'scale_level' : 2,
+                'pixel_width' : 300,
+                'pixel_height': 300,
+                'offset'      : 0,
+                'limit'       : 1,
+                'category'    : ['한식', '중식']
+            }
+        
+        response = client.get('/store', params).json()
+        store_name = response['results'][0]['store_name']
+
+        self.assertEqual(store_name, '순남시래기')
+    
+    def test_store_get_category_filter_not_found(self):
+        client = Client()
+        params = {
+                'lat'         : 37.491893917128,
+                'lng'         : 127.032166561787,
+                'scale_level' : 2,
+                'pixel_width' : 300,
+                'pixel_height': 300,
+                'offset'      : 0,
+                'limit'       : 1,
+                'category'    : ['중식']
+            }
+        
+        response = client.get('/store', params).json()
+
+        self.assertEqual(response.get('results'), [])
+    
+    def test_store_get_price_range_filter_success(self):
+        client = Client()
+        params = {
+                'lat'         : 37.491893917128,
+                'lng'         : 127.032166561787,
+                'scale_level' : 2,
+                'pixel_width' : 300,
+                'pixel_height': 300,
+                'offset'      : 0,
+                'limit'       : 1,
+                'price_range' : [5000, 10000]
+            }
+        
+        response = client.get('/store', params).json()
+        store_name = response['results'][0]['store_name']
+
+        self.assertEqual(store_name, '순남시래기')
+    
+    def test_store_get_price_range_filter_not_found(self):
+        client = Client()
+        params = {
+                'lat'         : 37.491893917128,
+                'lng'         : 127.032166561787,
+                'scale_level' : 2,
+                'pixel_width' : 300,
+                'pixel_height': 300,
+                'offset'      : 0,
+                'limit'       : 1,
+                'price_range' : [9000, 10000]
+            }
+        
+        response = client.get('/store', params).json()
+
+        self.assertEqual(response.get('results'), [])
+    
+    def test_store_get_fail_with_wrong_lat_lng(self):
+        client = Client()
+        params = {
+                 'lat'         : 127.032166561787,
+                 'lng'         : 37.491893917128,
+                 'scale_level' : 2,
+                 'pixel_width' : 300,
+                 'pixel_height': 300,
+               }
+        
+        response = client.get('/store', params).json()
+        self.assertEqual(response.get('message'), 'VALUE_ERROR')
+
+    def test_store_get_fail_with_key_error(self):
+        client = Client()
+        params = {
+                 'lattt'         : 127.032166561787,
+                 'lonnn'         : 37.491893917128,
+                 'scale_level' : 2,
+                 'pixel_width' : 300,
+                 'pixel_height': 300,
+               }
+
+        response = client.get('/store', params).json()
+        self.assertEqual(response.get('message'), 'KEY_ERROR')
+    
+
+class StoreDetailShowTest(StoreShowTest):
+    def setUp(self):
+        super(StoreDetailShowTest, self).setUp()
+    
+    def test_store_detail_get_success(self):
+        client = Client()
+        params = {
+            'store_id': 1
+        }
+
+        response = client.get('/store/detail', params).json()
+        store_name = response['result']['store_name']
+
+        self.assertEqual(store_name, '순남시래기')
+    
+    def test_store_review_ratings_avg_get_success(self):
+        store              = Store.objects.get(id=1)
+        review_ratings_avg = ReviewDetail.get_review_ratings_avg(store)
+
+        self.assertEqual(review_ratings_avg, 4.5)
+    
+    def test_store_review_count_get_success(self):
+        store        = Store.objects.get(id=1)
+        review_count = ReviewDetail.get_review_count(store)
+
+        self.assertEqual(review_count, 2)
+
+    def test_store_detail_get_fail_with_key_error(self):
+        client = Client()
+        params = {
+            'store_idddddd': 1
+        }
+
+        response = client.get('/store/detail', params).json()
+
+        self.assertEqual(response.get('message'), 'KEY_ERROR')
+    
+    def test_store_detail_get_fail_with_store_not_found(self):
+        Store.objects.filter(id=1).delete()
+
+        client = Client()
+        params = {
+            'store_id': 1
+        }
+
+        response = client.get('/store/detail', params).json()
+
+        self.assertEqual(response.get('message'), 'STORE_DOES_NOT_EXIST')
