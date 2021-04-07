@@ -16,6 +16,9 @@ from .models import (
                      Address, Menu, MetroStation,
                      MetroStationStore, OpenStatus
                 )
+from user.models import Review
+
+from utils.decorators import auth_check
 
 
 DPI  = 200
@@ -273,8 +276,8 @@ class StoreDetailView(View):
     def get(self, request):
         try:
             store = Store.objects.select_related('category', 'address', 'open_status').\
-                                  prefetch_related('menu_set', 'storeimage_set', 'metrostationstore_set', 'review_set')\
-                                  .get(id=request.GET['store_id'])
+                                  prefetch_related('menu_set', 'storeimage_set', 'metrostationstore_set', 'review_set').\
+                                  get(id=request.GET['store_id'])
 
             review_ratings_avg = ReviewDetail.get_review_ratings_avg(store)
             review_count       = ReviewDetail.get_review_count(store)
@@ -340,3 +343,53 @@ class StoreDetailView(View):
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)
         except Store.DoesNotExist:
             return JsonResponse({'message': 'STORE_DOES_NOT_EXIST'}, status=404)
+
+
+class ReviewRegisterView(View):
+    @auth_check
+    def post(self, request, store_id):
+        try:
+            data = json.loads(request.body)
+            
+            rating    = str(data['rating'])
+            content   = data['content']
+            image_url = data.get('image_url')
+
+            if not Store.objects.filter(id=store_id).exists():
+                return JsonResponse({'message': 'STORE_DOES_NOT_EXIST'})
+
+            Review.objects.create(
+                                 rating    = rating,
+                                 content   = content,
+                                 image_url = image_url,
+                                 store_id  = store_id,
+                                 user      = request.user
+                                )
+            return JsonResponse({'message': 'SUCCESS'}, status=201)
+        
+        except KeyError:
+            return JsonResponse({'message': 'KEY_ERROR'}, status=400)
+        except JSONDecodeError:
+            return JsonResponse({'message': 'JSON_DECODE_ERROR'}, status=400)
+    
+
+class ReviewModifyView(View):
+    @auth_check
+    def delete(self, request, store_id, review_id):
+        try:
+            if not Store.objects.filter(id=store_id).exists():
+                return JsonResponse({'message': 'STORE_DOES_NOT_EXIST'})
+
+            review = Review.objects.filter(id=review_id)
+            if not review:
+                return JsonResponse({'message': 'REVIEW_DOES_NOT_EXIST'}, status=404)
+
+            review = review.filter(user=request.user)
+            if not review:
+                return JsonResponse({'message': 'PERMISSION_ERROR'}, status=403)
+            
+            review.delete()
+            return JsonResponse({'message': 'SUCCESS'}, status=203)
+        
+        except JSONDecodeError:
+            return JsonResponse({'message': 'JSON_DECODE_ERROR'}, status=400)  

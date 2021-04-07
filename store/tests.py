@@ -1,10 +1,12 @@
 import json
 import requests
 import copy
+import jwt
 
-from django.test import TestCase
-from django.test import Client
-from django.http import JsonResponse
+from django.test         import TestCase
+from django.test         import Client
+from rest_framework.test import APIClient
+from django.http         import JsonResponse
 
 from unittest.mock import patch, MagicMock, Mock
 
@@ -16,6 +18,8 @@ from .models import (
                     MetroStation, MetroStationStore
                 )
 from user.models import User, Review
+
+from mukbang.settings import SECRET_KEY, HASHING_ALGORITHM
 
 
 TEST_DATA = {
@@ -428,3 +432,169 @@ class StoreDetailShowTest(StoreShowTest):
         response = client.get('/store/detail', params).json()
 
         self.assertEqual(response.get('message'), 'STORE_DOES_NOT_EXIST')
+
+
+
+class ReviewRegisterTest(TestCase):
+    def setUp(self):
+        Category.objects.bulk_create(
+                                [
+                                Category(name='한식'),
+                                Category(name='퓨전'),
+                                Category(name='패스트푸드'),
+                                Category(name='카페'),
+                                Category(name='치킨'),
+                                Category(name='중식'),
+                                Category(name='주점'),
+                                Category(name='일식'),
+                                Category(name='양식'),
+                                Category(name='분식'),
+                                Category(name='베이커리')
+                                ]
+                            )
+
+        OpenStatus.objects.bulk_create(
+                                [
+                                OpenStatus(name='영업종료'),
+                                OpenStatus(name='오픈중'),
+                                OpenStatus(name='브레이크타임')
+                                ]
+                            )
+        
+        client = Client()
+        response = client.post('/store', json.dumps(TEST_DATA), content_type='application/json').json()
+
+        user           = User.objects.create(kakao_id='test_kakao_id')
+        self.jwt_token = jwt.encode({'user_id': user.id}, SECRET_KEY, algorithm=HASHING_ALGORITHM)
+
+    def test_review_register_success(self):
+        client = APIClient()
+
+        store_id = Store.objects.all().first().id
+        user_id  = User.objects.all().first().id
+
+        review_content = {
+                        'rating'   : '4.5',
+                        'content'  : 'good',
+                        'image_url': 'test_image_url'
+                    }
+
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+        response = client.post('/store/{}/review'.format(store_id), json.dumps(review_content), content_type='application/json')
+        
+        self.assertEqual(response.json().get('message'), 'SUCCESS')
+    
+    def test_review_register_fail_with_decode_error(self):
+        client = APIClient()
+
+        store_id = Store.objects.all().first().id
+        user_id  = User.objects.all().first().id
+
+        review_content = {
+                        'rating'   : '4.5',
+                        'content'  : 'good',
+                        'image_url': 'test_image_url'
+                    }
+
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+        response = client.post('/store/{}/review'.format(store_id), review_content, content_type='application/json')
+        
+        self.assertEqual(response.json().get('message'), 'JSON_DECODE_ERROR')
+    
+    def test_review_register_fail_with_key_error(self):
+        client = APIClient()
+
+        store_id = Store.objects.all().first().id
+        user_id  = User.objects.all().first().id
+
+        review_content = {
+                        'ratinasdfasdfg'  : '4.5',
+                        'contenasdfsadt'  : 'good',
+                        'image_urasfsdafl': 'test_image_url'
+                    }
+
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+        response = client.post('/store/{}/review'.format(store_id), json.dumps(review_content), content_type='application/json')
+        
+        self.assertEqual(response.json().get('message'), 'KEY_ERROR')
+
+    def test_review_register_fail_with_store_not_found(self):
+        client = APIClient()
+
+        store_id = Store.objects.all().first().id
+        user_id  = User.objects.all().first().id
+
+        review_content = {
+                        'rating'   : '4.5',
+                        'content'  : 'good',
+                        'image_url': 'test_image_url'
+                    }
+
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+        response = client.post('/store/1000000/review', json.dumps(review_content), content_type='application/json')
+        
+        self.assertEqual(response.json().get('message'), 'STORE_DOES_NOT_EXIST')
+    
+
+class ReviewModifyTest(ReviewRegisterTest):
+    def setUp(self):
+        super(ReviewModifyTest, self).setUp()
+
+        client = APIClient()
+
+        store_id = Store.objects.all().first().id
+
+        review_content = {
+                        'rating'   : '4.5',
+                        'content'  : 'good',
+                        'image_url': 'test_image_url'
+                    }
+
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+        client.post('/store/{}/review'.format(store_id), json.dumps(review_content), content_type='application/json')
+        
+        self.review_id = Review.objects.all().first().id
+
+    def test_review_delete_success(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+
+        store_id = Store.objects.all().first().id
+
+        response = client.delete('/store/{}/review/{}'.format(store_id, self.review_id))
+
+        self.assertEqual(response.json().get('message'), 'SUCCESS')
+    
+    def test_review_delete_fail_with_wrong_store_id(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+
+        store_id = Store.objects.all().first().id
+
+        response = client.delete('/store/{}/review/{}'.format(10000, self.review_id))
+
+        self.assertEqual(response.json().get('message'), 'STORE_DOES_NOT_EXIST')
+    
+    def test_review_delete_fail_with_wrong_review_id(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=self.jwt_token)
+
+        store_id = Store.objects.all().first().id
+
+        response = client.delete('/store/{}/review/{}'.format(store_id, 10000))
+
+        self.assertEqual(response.json().get('message'), 'REVIEW_DOES_NOT_EXIST')
+    
+    def test_review_delete_fail_with_permission_error(self):
+        user = User.objects.create(kakao_id='test_kakao_id_wrong_user')
+
+        wrong_user_jwt_token = jwt.encode({'user_id': user.id}, SECRET_KEY, algorithm=HASHING_ALGORITHM)
+
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=wrong_user_jwt_token)
+
+        store_id = Store.objects.all().first().id
+
+        response = client.delete('/store/{}/review/{}'.format(store_id, self.review_id))
+
+        self.assertEqual(response.json().get('message'), 'PERMISSION_ERROR')

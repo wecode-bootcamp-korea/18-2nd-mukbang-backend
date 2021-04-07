@@ -1,15 +1,23 @@
-import jwt, time, random, datetime
-import requests, hashlib, hmac, base64
-import uuid, json, bcrypt, re
-from json.decoder     import JSONDecodeError
+import jwt, time, random
+import requests, hashlib, hmac
+import json, bcrypt, re
+import datetime, base64
+from json import JSONDecodeError
 
-from django.shortcuts import redirect
 from django.views     import View
 from django.http      import JsonResponse
 
-from utils.decorators       import Validator
-from .models          import User
-from my_settings      import SMS_SERVICE_ID, SMS_SECRET_KEY, SMS_ACCESS_KEY, HASHING_ALGORITHM, SECRET_KEY, EMAIL_REGEX, PASSWORD_REGEX
+from .models import User, Review
+
+from my_settings import (
+                         SMS_SERVICE_ID, SMS_SECRET_KEY,
+                         SMS_ACCESS_KEY, HASHING_ALGORITHM,
+                         SECRET_KEY, EMAIL_REGEX,
+                         PASSWORD_REGEX, KAKAO_RESTAPI_KEY
+                    )
+
+from utils.decorators import auth_check, validator
+
 
 KAKAO_USERINFO_REQUEST_URL = 'https://kapi.kakao.com/v2/user/me'
 
@@ -46,7 +54,7 @@ class KakaoLoginView(View):
 
 
 class SignUpView(View):
-    @Validator
+    @validator
     def post(self, request):
         try:
             data          = json.loads(request.body)
