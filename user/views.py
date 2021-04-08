@@ -4,20 +4,18 @@ import json, bcrypt, re
 import datetime, base64
 from json import JSONDecodeError
 
-from django.views     import View
-from django.http      import JsonResponse
+from django.views       import View
+from django.http        import JsonResponse
 
-from .models import User, Review
-
-from my_settings import (
+from .models            import User, Review, WishList
+from store.models       import Store
+from utils.decorators   import auth_check, validator
+from my_settings        import (
                          SMS_SERVICE_ID, SMS_SECRET_KEY,
                          SMS_ACCESS_KEY, HASHING_ALGORITHM,
                          SECRET_KEY, EMAIL_REGEX,
                          PASSWORD_REGEX, KAKAO_RESTAPI_KEY
-                    )
-
-from utils.decorators import auth_check, validator
-
+                         )   
 
 KAKAO_USERINFO_REQUEST_URL = 'https://kapi.kakao.com/v2/user/me'
 
@@ -121,12 +119,11 @@ class SMSCodeRequestView(View):
                 }
 
                 sms_service_url   = 'https://sens.apigw.ntruss.com/sms/v2/services/{}/messages'.format(SMS_SERVICE_ID)
-                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body), timeout_seconds=5)
+                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body), timeout=5)
 
                 if response.status_code == 202:
                     return JsonResponse({'message': 'SUCCESS_CODE_SENT', 'hased_random_code':hased_random_code})      
                 return JsonResponse({'message': 'CODE_NOT_SENT'})
-
 
             except KeyError:
                 return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
@@ -168,7 +165,7 @@ class SignInView(View):
             if not bcrypt.checkpw(password.encode('utf-8'), decoded_password.encode('utf-8')):
                 return JsonResponse({'message': 'ERROR_PASSWORD_NOT_MATCHED'}, status=401)
 
-            return JsonResponse({'message':'SUCCESS_SIGNIN'}, status = 201)
+            return JsonResponse({'message':'SUCCESS_SIGNIN','token':jwt.encode({'user_id': email_check.id}, SECRET_KEY, algorithm=HASHING_ALGORITHM)}, status = 201)
 
         except KeyError:
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
@@ -176,3 +173,42 @@ class SignInView(View):
         except JSONDecodeError:
             return JsonResponse({'message': 'JSONDecodeError'}, status=400)
 
+class ShowWishlist(View):
+    @auth_check
+    def get(self, request):
+        try:  
+            wishlist_qs = WishList.objects.filter(user=request.user)
+            stores      = [{'store_id': wishlist.store.id,
+                            'store_name': wishlist.store.name,
+                            'full_address': wishlist.store.address.full_address,
+                            'one_line_introduction':wishlist.store.one_line_introduction,
+                            'category': wishlist.store.category,
+                            'review_rating':
+                            'review_counting':
+                            
+
+                } for wishlist in wishlist_qs]
+            return JsonResponse({'results':stores}, status=200)
+        except 
+
+class AddWishlistView(View):
+    @auth_check
+    def post(self, request):    
+            store_id = request.POST.get[store_id]
+
+            if not Store.objects.filter(id=store_id).exists():
+                return JsonResponse({'message' : 'ERROR_STORE_UNKOWN'}, status=404)
+            if WishList.objects.filter(store_id=store_id).exists():
+                return JsonResponse({'message' : 'ERROR_STORE_EXISTS'}, status=404)
+            WishList.objects.create(
+                user=request.user, store_id=store_id
+            )
+            return JsonResponse({'message':'SUCCESS_STORE_ADDED'}, status=201)
+            
+class DeleteWishlistView(View):   
+    @auth_check
+    def delete(self, request, store_id):    
+        if not WishList.object.filter(store_id=store_id).exists():
+            return JsonResponse({'message':'ERROR_STORE_NOT_LISTED'})
+        WishList.object.delete(store_id=store_id)
+        return JsonResponse({'message':'SUCCESS_STROE_DELDTED'}, status=201)

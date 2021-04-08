@@ -242,3 +242,38 @@ class CodeCheckTest(TestCase):
         client   = Client()
         response = client.post("/user/smscodecheck", json.dumps(codes), content_type ='application/json')        
         self.assertEqual(response.json().get('message'), 'KEY_ERROR')
+
+class WishistTest(TestCase):
+    def setUp(self):
+        Wishlist.objects.create(
+            user_id  = '123',
+            sotre_id = '321'
+        )
+    def tearDown(self):
+        User.objects.all().delete()
+    
+    def test_success_show_list(slef):
+        
+
+    def test_fail_unknown_store(self):
+        store_id = '111'
+        client   = Client()
+        response = client.post("/user/addwishlist")
+        self.assertEqual(response.json()).get('message'), 'ERROR_UNKOWN_STORE')
+    
+    def test_fail_store_exists(self):
+        store_id = '321'
+        client   = Client()
+        response = client.post("/user/addwishlist")
+        self.assertEqual(response.json()).get('message'), 'ERROR_STORE_EXISTS')
+
+    def test_success_add_wishlist(self)
+        user_id  = '123'
+        store_id = '123'
+        client   = Client()
+        response = client.post("/user/addwishlist")
+        self.assertEqual(response.json()).get('message'), 'SUCCESS_WISHLIST_ADDED')
+
+    # def test_delete_wishlist(self):
+
+    #     client = Client()
