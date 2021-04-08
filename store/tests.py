@@ -200,7 +200,9 @@ class StoreRegistryDuplicateTest(TestCase):
         self.assertEqual(response.get('message'), 'DUPLICATE_STORE_NAME_AT_THE_SAME_LOCATION')
 
 
-class StoreShowTest(TestCase):
+class StoreBasicTest(TestCase):
+    __test__ = False
+
     def setUp(self):
         category    = Category.objects.create(name='한식')
         open_status = OpenStatus.objects.create(name='오픈중')
@@ -254,6 +256,11 @@ class StoreShowTest(TestCase):
 
         Review.objects.create(rating=4, content='맛있어요', user=user, store=store, image_url='test_image_url')
         Review.objects.create(rating=5, content='맛있어요', user=user, store=store, image_url='test_image_url')
+
+
+class StoreShowTest(StoreBasicTest):
+    def setUp(self):
+        super(StoreShowTest, self).setUp()    
 
     def test_store_get_without_pagination_success(self):
         client = Client()
@@ -357,6 +364,60 @@ class StoreShowTest(TestCase):
 
         self.assertEqual(response.get('results'), [])
     
+    def test_store_get_rating_avg_filter_with_reverse_success(self):
+        client = Client()
+
+        TEMP_TEST_DATA = copy.deepcopy(TEST_DATA)
+        TEMP_TEST_DATA['data']['store_name'] = '담소사골국밥'
+
+        client.post('/store', json.dumps(TEMP_TEST_DATA), content_type='application/json')
+        
+        params = {
+                'lat'            : 37.491893917128,
+                'lng'            : 127.032166561787,
+                'scale_level'    : 2,
+                'pixel_width'    : 300,
+                'pixel_height'   : 300,
+                'offset'         : 0,
+                'limit'          : 2,
+                'price_range'    : [2000, 10000],
+                'review_category': 'rating_average',
+                'reverse'        : 1
+            }
+
+        response = client.get('/store', params).json()
+        
+        first_store_name = response['results'][0]['store_name']
+
+        self.assertEqual(first_store_name, '담소사골국밥')
+
+    def test_store_get_review_count_filter_without_reverse_success(self):
+        client = Client()
+
+        TEMP_TEST_DATA = copy.deepcopy(TEST_DATA)
+        TEMP_TEST_DATA['data']['store_name'] = '담소사골국밥'
+
+        client.post('/store', json.dumps(TEMP_TEST_DATA), content_type='application/json')
+        
+        params = {
+                'lat'            : 37.491893917128,
+                'lng'            : 127.032166561787,
+                'scale_level'    : 2,
+                'pixel_width'    : 300,
+                'pixel_height'   : 300,
+                'offset'         : 0,
+                'limit'          : 2,
+                'price_range'    : [2000, 10000],
+                'review_category': 'review_count',
+                'reverse'        : 0
+            }
+
+        response = client.get('/store', params).json()
+        
+        first_store_name = response['results'][0]['store_name']
+
+        self.assertEqual(first_store_name, '순남시래기')
+
     def test_store_get_fail_with_wrong_lat_lng(self):
         client = Client()
         params = {
@@ -384,7 +445,7 @@ class StoreShowTest(TestCase):
         self.assertEqual(response.get('message'), 'KEY_ERROR')
     
 
-class StoreDetailShowTest(StoreShowTest):
+class StoreDetailShowTest(StoreBasicTest):
     def setUp(self):
         super(StoreDetailShowTest, self).setUp()
     
@@ -599,7 +660,7 @@ class ReviewModifyTest(ReviewRegisterTest):
         self.assertEqual(response.json().get('message'), 'PERMISSION_ERROR')
 
         
-class StoreSearchTest(StoreShowTest):
+class StoreSearchTest(StoreBasicTest):    
     def setUp(self):
         super(StoreSearchTest, self).setUp()
     

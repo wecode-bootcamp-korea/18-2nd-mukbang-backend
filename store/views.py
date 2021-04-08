@@ -8,7 +8,7 @@ from django.views           import View
 from django.http            import JsonResponse
 from django.db              import transaction
 from django.db.utils        import DataError
-from django.db.models       import Q, Avg
+from django.db.models       import Q, Avg, Count
 from django.core.exceptions import ValidationError
 
 from .models import (
@@ -87,16 +87,34 @@ class StoreView(View):
             store_ids = [address.store.id for address in addresses_in_range_qs]
             stores_qs = Store.objects.filter(id__in=store_ids)
 
-            category_filter    = request.GET.getlist('category')
-            price_range_filter = request.GET.getlist('price_range')
+            category_filter        = request.GET.getlist('category')
+            price_range_filter     = request.GET.getlist('price_range')
+            review_category_filter = request.GET.get('review_category')
+            reverse                = request.GET.get('reverse')
 
+            # 업종으로 필터링
             if category_filter:
                 stores_qs = stores_qs.exclude(~Q(category__name__in=category_filter))
-        
+
+            # 가격범위로 필터링
             if price_range_filter:
                 min_price, max_price = float(price_range_filter[0]), float(price_range_filter[1])
 
                 stores_qs = stores_qs.exclude(~(Q(menu__price__gte=min_price) & Q(menu__price__lte=max_price)))
+
+            # 리뷰평점으로 필터링
+            if review_category_filter == 'rating_average':
+                if reverse == '0':
+                    stores_qs = stores_qs.annotate(rating_avg=Avg('review__rating')).order_by('-rating_avg')
+                else:
+                    stores_qs = stores_qs.annotate(rating_avg=Avg('review__rating')).order_by('rating_avg')
+
+            # 리뷰건수로 필터링
+            if review_category_filter == 'review_count':
+                if reverse == '0':
+                    stores_qs = stores_qs.annotate(review_count=Count('review__id')).order_by('-review_count')
+                else:
+                    stores_qs = stores_qs.annotate(review_count=Count('review__id')).order_by('review_count')
 
             offset = request.GET.get('offset')
             limit  = request.GET.get('limit')
@@ -111,6 +129,9 @@ class StoreView(View):
                 stores_qs = stores_qs[offset * limit:(offset + 1) * limit]\
                             .select_related('address', 'category', 'open_status')\
                             .prefetch_related('storeimage_set', 'review_set')
+            else:
+                stores_qs = stores_qs.select_related('address', 'category', 'open_status')\
+                                     .prefetch_related('storeimage_set', 'review_set')
 
             results = [
                 {   
