@@ -393,3 +393,36 @@ class ReviewModifyView(View):
         
         except JSONDecodeError:
             return JsonResponse({'message': 'JSON_DECODE_ERROR'}, status=400)  
+
+            
+class StoreSearchView(View):
+    def get(self, request):
+        keyword = request.GET.get('q')
+        if not keyword:
+            return JsonResponse({'message': 'NO_KEYWORD'}, status=400)
+
+        stores_qs = Store.objects.filter(
+                                        Q(name__contains=keyword) |
+                                        Q(address__full_address__contains=keyword) |
+                                        Q(metrostation__name__contains=keyword) |
+                                        Q(category__name__contains=keyword)
+                                        ).distinct()
+        
+        if not stores_qs:
+            return JsonResponse({'message': 'RESULT_NOT_FOUND'}, status=404) 
+
+        stores_qs = stores_qs.select_related('address', 'category').prefetch_related('metrostation_set')
+
+        results = [
+                    {   
+                    'store_id'    : store.id,
+                    'lat'         : store.address.latitude,
+                    'lng'         : store.address.longitude,
+                    'full_address': store.address.full_address,
+                    'store_name'  : store.name,
+                    'category'    : store.category.name,
+                    'near_metro_stations': [metro_station.name for metro_station in store.metrostation_set.all()]
+                    } for store in stores_qs
+                ]
+
+        return JsonResponse({'results': results}, status=200)
