@@ -434,7 +434,6 @@ class StoreDetailShowTest(StoreShowTest):
         self.assertEqual(response.get('message'), 'STORE_DOES_NOT_EXIST')
 
 
-
 class ReviewRegisterTest(TestCase):
     def setUp(self):
         Category.objects.bulk_create(
@@ -598,3 +597,86 @@ class ReviewModifyTest(ReviewRegisterTest):
         response = client.delete('/store/{}/review/{}'.format(store_id, self.review_id))
 
         self.assertEqual(response.json().get('message'), 'PERMISSION_ERROR')
+
+        
+class StoreSearchTest(StoreShowTest):
+    def setUp(self):
+        super(StoreSearchTest, self).setUp()
+    
+    def test_store_search_get_success_with_category(self):
+        client = Client()
+
+        params = {
+            'q': '한'
+        }
+
+        response = client.get('/store/search', params)
+        result   = response.json().get('results')[0]
+
+        category = result.get('category')
+
+        self.assertEqual(category, '한식')
+    
+    def test_store_search_get_success_with_store_name(self):
+        client = Client()
+
+        params = {
+            'q': '순남'
+        }
+
+        response = client.get('/store/search', params)
+        result   = response.json().get('results')[0]
+
+        store_name = result.get('store_name')
+
+        self.assertEqual(store_name, '순남시래기')
+
+    def test_store_search_get_success_with_address(self):
+        client = Client()
+
+        params = {
+            'q': '강남'
+        }
+
+        response = client.get('/store/search', params)
+        result   = response.json().get('results')[0]
+
+        full_address = result.get('full_address')
+
+        self.assertEqual(full_address, '서울 강남구 강남대로66길 16')
+
+    def test_store_search_get_success_with_metro_station(self):
+        client = Client()
+
+        params = {
+            'q': '사당'
+        }
+
+        response = client.get('/store/search', params)
+        result   = response.json().get('results')[0]
+
+        near_metro_stations = result.get('near_metro_stations')
+
+        self.assertEqual(near_metro_stations, ['사당역'])
+
+    def test_store_search_get_fail_with_no_keyword(self):
+        client = Client()
+
+        params = {
+            'q': ''
+        }
+
+        response = client.get('/store/search', params).json()
+
+        self.assertEqual(response.get('message'), 'NO_KEYWORD')
+    
+    def test_store_search_get_fail_with_result_not_found(self):
+        client = Client()
+
+        params = {
+            'q': 'test_keyword_with_no_result'
+        }
+
+        response = client.get('/store/search', params).json()
+
+        self.assertEqual(response.get('message'), 'RESULT_NOT_FOUND')
