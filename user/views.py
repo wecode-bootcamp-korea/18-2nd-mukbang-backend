@@ -6,8 +6,9 @@ from json import JSONDecodeError
 
 from django.views     import View
 from django.http      import JsonResponse
+from django.db.utils  import IntegrityError
 
-from .models import User, Review
+from .models import User, Review, WishList
 
 from my_settings import (
                          SMS_SERVICE_ID, SMS_SECRET_KEY,
@@ -121,12 +122,11 @@ class SMSCodeRequestView(View):
                 }
 
                 sms_service_url   = 'https://sens.apigw.ntruss.com/sms/v2/services/{}/messages'.format(SMS_SERVICE_ID)
-                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body), timeout_seconds=5)
+                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body))
 
                 if response.status_code == 202:
                     return JsonResponse({'message': 'SUCCESS_CODE_SENT', 'hased_random_code':hased_random_code})      
                 return JsonResponse({'message': 'CODE_NOT_SENT'})
-
 
             except KeyError:
                 return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
@@ -158,14 +158,13 @@ class SignInView(View):
             data          = json.loads(request.body)
             email         = data['email']
             password      = data['password']
-            
-            email_check      = User.objects.get(email=email)
-            decoded_password = email_check.password
+            email_check   = User.objects.filter(email=email).first()
 
             if not email_check:
                 return JsonResponse({'message': 'ERROR_NO_EMAIL'}, status=401)
 
-            if not bcrypt.checkpw(password.encode('utf-8'), decoded_password.encode('utf-8')):
+            decoded_password = email_check.password.encode('utf-8')
+            if not bcrypt.checkpw(password.encode('utf-8'), decoded_password):
                 return JsonResponse({'message': 'ERROR_PASSWORD_NOT_MATCHED'}, status=401)
 
             return JsonResponse({'message':'SUCCESS_SIGNIN'}, status = 201)
