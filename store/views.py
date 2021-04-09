@@ -283,13 +283,17 @@ class StoreView(View):
                 MetroStationStore.objects.create(store=store, metro_station=metro_station)
                 return JsonResponse({'message': 'SUCCESS'}, status=201)
 
-        except KeyError: 
+        except KeyError:
+            transaction.set_rollback(True)
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)
         except JSONDecodeError:
+            transaction.set_rollback(True)
             return JsonResponse({'message': 'JSON_DECODE_ERROR'}, status=400)
         except ValidationError:
+            transaction.set_rollback(True)
             return JsonResponse({'message': 'DATA_VALIDATION_ERROR'}, status=400)
         except DataError:
+            transaction.set_rollback(True)
             return JsonResponse({'message': 'DATA_ERROR'}, status=400)
 
 

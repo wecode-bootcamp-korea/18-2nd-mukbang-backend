@@ -176,3 +176,57 @@ class SignInView(View):
         except JSONDecodeError:
             return JsonResponse({'message': 'JSONDecodeError'}, status=400)
 
+
+class WishlistView(View):
+    @auth_check
+    def get(self, request):
+        wishlist_qs = WishList.objects.filter(user=request.user)\
+                                      .select_related('store__address', 'store__category')\
+                                      .prefetch_related('store__review_set')
+
+        stores = [
+                {
+                'store_id'             : wishlist.store.id,
+                'store_name'           : wishlist.store.name,
+                'full_address'         : wishlist.store.address.full_address,
+                'one_line_introduction': wishlist.store.one_line_introduction,
+                'category'             : wishlist.store.category.name,
+                'rating'               : ReviewDetail.get_review_ratings_avg(wishlist.store),
+                'counting'             : ReviewDetail.get_review_count(wishlist.store),
+                'image_url'            : wishlist.store.storeimage_set.all().first().image_url
+            } for wishlist in wishlist_qs]
+        return JsonResponse({'results':stores}, status=200)
+
+    @auth_check
+    def post(self, request):
+        try:
+            store_id = request.GET.get('store_id')
+            if not store_id:
+                return JsonResponse({'message' : 'STORE_ID_PARAMETER_MISSING'}, status=400)
+
+            store_id = int(store_id)
+
+            if not Store.objects.filter(id=store_id).exists():
+                return JsonResponse({'message' : 'ERROR_STORE_UNKOWN'}, status=404)
+            if WishList.objects.filter(store_id=store_id, user=request.user).exists():
+                return JsonResponse({'message' : 'ERROR_STORE_ALREADY_LIKED'}, status=404)
+            WishList.objects.create(
+                user=request.user, store_id=store_id
+            )
+            return JsonResponse({'message':'SUCCESS_STORE_ADDED'}, status=201)
+
+        except IntegrityError:
+            return JsonResponse({'message':'INTEGRITY_ERROR'}, status=400)
+
+
+class DeleteWishlistView(View):   
+    @auth_check
+    def delete(self, request, store_id):    
+        if not Store.objects.filter(id=store_id).exists():
+            return JsonResponse({'message':'STORE_DOES_NOT_EXIST'})
+
+        if not WishList.object.filter(store_id=store_id, user=request.user).exists():
+            return JsonResponse({'message':'ERROR_STORE_NOT_LISTED'})
+
+        WishList.object.delete(store_id=store_id, user=request.user)
+        return JsonResponse({'message':'SUCCESS_STROE_DELDTED'}, status=201)
