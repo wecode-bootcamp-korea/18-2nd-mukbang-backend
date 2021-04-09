@@ -75,7 +75,6 @@ class SignUpView(View):
 
         except KeyError:
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
-
         except JSONDecodeError:
             return JsonResponse({'message': 'JSONDecodeError'}, status=400)
 
@@ -126,8 +125,7 @@ class SMSCodeRequestView(View):
                 return JsonResponse({'message': 'CODE_NOT_SENT'})
 
             except KeyError:
-                return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
-                
+                return JsonResponse({'message': 'KEY_ERROR'}, status=400)                           
             except JSONDecodeError:
                 return JsonResponse({'message': 'JSONDecodeError'}, status=400)
 
@@ -145,7 +143,6 @@ class SMSCodeCheckView(View):
 
         except KeyError:
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
-
         except JSONDecodeError:
             return JsonResponse({'message': 'JSONDecodeError'}, status=400)
 
@@ -161,35 +158,32 @@ class SignInView(View):
 
             if not email_check:
                 return JsonResponse({'message': 'ERROR_NO_EMAIL'}, status=401)
-
             if not bcrypt.checkpw(password.encode('utf-8'), decoded_password.encode('utf-8')):
                 return JsonResponse({'message': 'ERROR_PASSWORD_NOT_MATCHED'}, status=401)
-
             return JsonResponse({'message':'SUCCESS_SIGNIN','token':jwt.encode({'user_id': email_check.id}, SECRET_KEY, algorithm=HASHING_ALGORITHM)}, status = 201)
 
         except KeyError:
             return JsonResponse({'message': 'KEY_ERROR'}, status=400)            
-
         except JSONDecodeError:
             return JsonResponse({'message': 'JSONDecodeError'}, status=400)
 
-class ShowWishlist(View):
-    @auth_check
-    def get(self, request):
-        try:  
-            wishlist_qs = WishList.objects.filter(user=request.user)
-            stores      = [{'store_id': wishlist.store.id,
-                            'store_name': wishlist.store.name,
-                            'full_address': wishlist.store.address.full_address,
-                            'one_line_introduction':wishlist.store.one_line_introduction,
-                            'category': wishlist.store.category,
-                            'review_rating':
-                            'review_counting':
+# class ShowWishlist(View):
+#     @auth_check
+#     def get(self, request):
+#         try:  
+#             wishlist_qs = WishList.objects.filter(user=request.user)
+#             stores      = [{'store_id': wishlist.store.id,
+#                             'store_name': wishlist.store.name,
+#                             'full_address': wishlist.store.address.full_address,
+#                             'one_line_introduction':wishlist.store.one_line_introduction,
+#                             'category': wishlist.store.category,
+#                             'review_rating':
+#                             'review_counting':
                             
 
-                } for wishlist in wishlist_qs]
-            return JsonResponse({'results':stores}, status=200)
-        except 
+#                 } for wishlist in wishlist_qs]
+#             return JsonResponse({'results':stores}, status=200)
+#         except 
 
 class AddWishlistView(View):
     @auth_check

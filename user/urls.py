@@ -2,7 +2,7 @@ from django.urls import path
 from .views      import (
                         SMSCodeRequestView, SMSCodeCheckView,
                         KakaoLoginView, SignUpView, SignInView, 
-                        ShowWishlist, AddWishlistView, DeleteWishlistView
+                        AddWishlistView, DeleteWishlistView
                     )
 
 urlpatterns = [
