@@ -121,7 +121,7 @@ class SMSCodeRequestView(View):
                 }
 
                 sms_service_url   = 'https://sens.apigw.ntruss.com/sms/v2/services/{}/messages'.format(SMS_SERVICE_ID)
-                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body), timeout_seconds=5)
+                response          = requests.post(sms_service_url, headers=headers, data=json.dumps(body))
 
                 if response.status_code == 202:
                     return JsonResponse({'message': 'SUCCESS_CODE_SENT', 'hased_random_code':hased_random_code})      
